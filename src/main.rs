@@ -1,15 +1,15 @@
+mod dictionary;
 mod pretty_numbers;
-
 use std::env;
 
 use serenity::async_trait;
-use serenity::model::Timestamp;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
+use serenity::model::Timestamp;
 use serenity::prelude::*;
 
 use crate::pretty_numbers::PrettiableNumber;
-
+use dictionary::dict;
 
 struct Handler;
 
@@ -21,10 +21,11 @@ impl EventHandler for Handler {
     // event handlers are dispatched through a threadpool, and so multiple
     // events can be dispatched simultaneously.
     async fn message(&self, ctx: Context, msg: Message) {
-
         // do some event logging?
-        println!("message with id: {}, received at: {}",
-         msg.id, msg.timestamp);
+        println!(
+            "message with id: {}, received at: {}",
+            msg.id, msg.timestamp
+        );
 
         if msg.content == "!ping" {
             // sending a message can fail, due to a network error, an
@@ -39,7 +40,29 @@ impl EventHandler for Handler {
             if let Err(why) = msg.channel_id.say(&ctx.http, message).await {
                 println!("Error sending messsage: {:?}", why);
             }
-        }   
+        }
+
+        if msg.content.starts_with("!dict ") {
+            let query = &msg.content["!dct ".len()..];
+
+            let query_response = dict(query).await;
+            let msg_response = match query_response {
+                Ok(mut query_response) => {
+                    let mut query_response = query_response.remove(0);
+                    query_response
+                        .meanings
+                        .remove(0)
+                        .definitions
+                        .remove(0)
+                        .definition
+                }
+                Err(e) => format!("{e:?}"),
+            };
+
+            if let Err(why) = msg.channel_id.say(&ctx.http, msg_response).await {
+                println!("Error sending message: {:?}", why);
+            }
+        }
     }
 
     // set a handler to be called on the `ready` event. This is called when
@@ -65,7 +88,10 @@ async fn main() {
     // create a new instances of the client. logging in as a bot. this will
     // automaticlaly prepend your bot token with "bot" which is a  requirement
     // by discord for bot usres.
-    let mut client = Client::builder(&token, intents).event_handler(Handler).await.expect("Err creating client");
+    let mut client = Client::builder(&token, intents)
+        .event_handler(Handler)
+        .await
+        .expect("Err creating client");
 
     // finally start a single shard and start listening to events.
 
