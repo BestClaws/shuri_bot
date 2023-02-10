@@ -1,3 +1,5 @@
+mod pretty_numbers;
+
 use std::env;
 
 use serenity::async_trait;
@@ -5,6 +7,9 @@ use serenity::model::Timestamp;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
+
+use crate::pretty_numbers::PrettiableNumber;
+
 
 struct Handler;
 
@@ -26,12 +31,15 @@ impl EventHandler for Handler {
             // authentication error, or lack of permissions to post in the
             // channel, so log to stdout when some error happens, with a
             // description of it.
-            
-            let message = format!("Pong! Took {}us", Timestamp::now().microsecond() - msg.timestamp.microsecond());
+
+            let response_time = Timestamp::now().time() - msg.timestamp.time();
+            let response_time = response_time.whole_microseconds().to_string().pretty();
+
+            let message = format!("Pong! Took {}us", response_time);
             if let Err(why) = msg.channel_id.say(&ctx.http, message).await {
                 println!("Error sending messsage: {:?}", why);
             }
-        }
+        }   
     }
 
     // set a handler to be called on the `ready` event. This is called when
