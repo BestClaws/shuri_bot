@@ -1,10 +1,12 @@
 mod dictionary;
 mod last_seen;
 mod pretty_numbers;
+mod log_config;
 
 use std::env;
 
 
+use log::debug;
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::event::TypingStartEvent;
@@ -119,6 +121,13 @@ async fn main() {
     //     // TODO: this is a reasonably panic. but still handle this better.
     //     panic!("critical error. cannot establish connection to database, quitting.");
     // };
+
+    // setup logger
+    use log_config::setup_loggers;
+
+    setup_loggers();
+
+    debug!("hello");
 
     //  Initialize DB
     // TODO: dont hardcode values.
