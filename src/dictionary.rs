@@ -1,6 +1,8 @@
 use reqwest;
 use serde::{Deserialize, Serialize};
+use serenity::{model::prelude::Message, prelude::Context};
 
+use crate::Bot;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QueryResponse {
@@ -36,6 +38,29 @@ pub async fn dict(query: &str) -> Result<Vec<QueryResponse>, reqwest::Error> {
     Ok(meaning)
 }
 
+pub async fn process_message(_bot: &Bot, ctx: &Context, msg: &Message) {
+    if msg.content.starts_with("!dict ") {
+        let query = &msg.content["!dct ".len()..];
+
+        let query_response = dict(query).await;
+        let msg_response = match query_response {
+            Ok(mut query_response) => {
+                let mut query_response = query_response.remove(0); // OTODO: remove this remove that remove this shit code instead.
+                query_response
+                    .meanings
+                    .remove(0)
+                    .definitions
+                    .remove(0)
+                    .definition
+            }
+            Err(e) => format!("{e:?}"),
+        };
+
+        if let Err(why) = msg.channel_id.say(&ctx.http, msg_response).await {
+            println!("Error sending message: {:?}", why);
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {
