@@ -1,12 +1,12 @@
 mod dictionary;
 mod last_seen;
-mod pretty_numbers;
 mod log_config;
+mod pretty_numbers;
+mod message_activity;
 
 use std::env;
 
-
-use log::debug;
+use log::{debug, error};
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::event::TypingStartEvent;
@@ -14,31 +14,31 @@ use serenity::model::gateway::Ready;
 use serenity::model::Timestamp;
 use serenity::prelude::*;
 
-use sqlx::{postgres::PgPoolOptions, Postgres, Pool};
+use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 
-
-use dictionary::dict;
 use pretty_numbers::PrettiableNumber;
+
 
 
 
 pub struct Bot {
     // TODO: add bot config here.
     pub db: Pool<Postgres>,
+   
 }
-
-
-
 
 #[async_trait]
 impl EventHandler for Bot {
     async fn typing_start(&self, _ctx: Context, typing_event: TypingStartEvent) {
         println!("typing detected");
 
+
+
         last_seen::record_typing_event(&self, typing_event).await;
-
-
     }
+
+
+  
 
     // set a handler for the `message` event - so that whenever a new messagae
     // is received - the closure (or function) will be called.
@@ -73,34 +73,12 @@ impl EventHandler for Bot {
             }
         }
 
-        if msg.content.starts_with("!dict ") {
-            let query = &msg.content["!dct ".len()..];
-
-            let query_response = dict(query).await;
-            let msg_response = match query_response {
-                Ok(mut query_response) => {
-                    let mut query_response = query_response.remove(0); // OTODO: remove this remove that remove this shit code instead.
-                    query_response
-                        .meanings
-                        .remove(0)
-                        .definitions
-                        .remove(0)
-                        .definition
-                }
-                Err(e) => format!("{e:?}"),
-            };
-
-            if let Err(why) = msg.channel_id.say(&ctx.http, msg_response).await {
-                println!("Error sending message: {:?}", why);
-            }
-        }
-
-
         // this is your poor man's modules for now.
-        // do this for all the above modules ping and dict.
-        last_seen::process_message(self, ctx, msg).await;
-
-  
+        // until you figure out an idiomatic way
+        // of doing this.
+        dictionary::process_message(self, &ctx, &msg).await;
+        last_seen::process_message(self, &ctx, &msg).await;
+        message_activity::process_message(self, &ctx, &msg).await;
     }
 
     // set a handler to be called on the `ready` event. This is called when
@@ -125,17 +103,28 @@ async fn main() {
     // setup logger
     use log_config::setup_loggers;
 
-    setup_loggers();
+    if let Err(why) = setup_loggers() {
+        println!("failed to setup logging. reason :{}", why);
+    };
 
     debug!("hello");
 
     //  Initialize DB
     // TODO: dont hardcode values.
-    let Ok(db_conn_pool) = PgPoolOptions::new()
+    let db_conn_pool = match PgPoolOptions::new()
         .max_connections(5)
-        .connect("postgres://postgres:yuukiwoh@localhost/shuri_bot").await else {
-            panic!("critical error. couldn't connec t to database, quitting!")
-        };
+        .connect("postgres://postgres:yuukiwoh@localhost/shuri_db")
+        .await
+    {
+        Ok(db_conn_pool) => db_conn_pool,
+        Err(e) => {
+            error!(
+                "critical error, failed to establish connection to database: {}",
+                e
+            );
+            panic!();
+        }
+    };
 
     let bot = Bot { db: db_conn_pool };
 
@@ -165,8 +154,41 @@ async fn main() {
 }
 
 #[cfg(test)]
-mod test {
+mod test_anything {
+
+    use serenity::prelude::{TypeMap, TypeMapKey};
+
 
     #[test]
-    fn test_seen() {}
+    fn test_anything() {
+
+        // println!("{}", size_of::<Vec<u8>>());
+        let mut tm = TypeMap::new();
+
+        tm.insert::<Number>(12);
+        tm.insert::<Number2>(8);
+
+        let yes_or_no = tm.contains_key::<Number>();
+        println!("{yes_or_no}");
+
+
+        let yes_or_no = tm.contains_key::<Number2>();
+        println!("{yes_or_no}");
+
+        
+
+
+    }
+
+    struct Number;
+    struct Number2;
+
+    impl TypeMapKey for Number2 {
+        type Value = i8;
+    }
+
+
+    impl TypeMapKey for Number {
+        type Value = i32;
+    }
 }
