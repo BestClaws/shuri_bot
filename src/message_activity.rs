@@ -2,19 +2,54 @@ use std::collections::{HashMap, VecDeque};
 
 use crate::Bot;
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-use log::info;
+use tracing::{info, error};
 use serenity::{
     model::prelude::Message,
     prelude::{Context, TypeMapKey},
 };
 
-struct MessageActivityData;
+pub struct MessageActivityData;
 
 impl TypeMapKey for MessageActivityData {
     type Value = VecDeque<(NaiveDateTime, HashMap<String, u16>)>;
 }
 
 pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
+
+
+    if msg.content.starts_with("!msgstats ") {
+        for member in &msg.mentions {
+            let user_id = member.id.to_string();
+            
+            let rows = sqlx::query("select * from message_activity where user_id=$1")
+                .bind(user_id)
+                .fetch_all(&bot.db)
+                .await
+                .unwrap();
+
+            use sqlx::Row;
+
+            let mut msg_response = String::new();
+
+            for row in rows {
+                info!("row found!");
+                let t: DateTime<Utc> = row.try_get("timestamp").unwrap();
+                let c: i32 = row.try_get("message_count").unwrap();
+
+                let r = format!("time: {t}, count: {c}\n");
+                msg_response.push_str(&r);
+            }
+
+
+            if let Err(why) = msg.channel_id.say(&ctx.http, msg_response).await {
+                error!("error sending message: {:?}", why);
+            }
+
+        }
+    }
+
+
+
     // (cache should be a queue)
     // check message timestamp (ignoring second) in cache
     // if present increase count, or add entry
@@ -41,8 +76,10 @@ pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
         }
     };
 
-    println!("here it is: {} {queue:?}", queue.len());
+    info!("queue: {:?}", queue);
 
+    // find the timeframe in data and increment/create the user message count
+    // else crete the time frame
     let matched_frame = queue.iter_mut().find(|x| {
         let (timestamp, _) = x;
         timestamp.eq(&msg_timestamp)
@@ -67,36 +104,38 @@ pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
 
 
 
-    // push to db every 10 seconds.
-    // TODO: improve this.
-    // TODO: if database stuff fails push_front the failed timestamp records.
-    // you need to learn rollback commit for this. (for now let's just assume
-    // db doesn't fail on you.)
+}
 
-    
-    let modu = Utc::now().timestamp() % 10;
-    info!("timestamp: {}, modulus: {modu}", msg_timestamp.timestamp());
-    if modu == 0 {
-        info!("persisting to message_activity");
-        while queue.len() > 1 { // leave atleast one latest timestap alone incase
-                                // its still being populated.
 
-            info!("more than 2 entries found in message_activity queue");
-            let Some(e) = queue.pop_front() else {
-                panic!("error occured getting the next element.");
-            };
+#[cfg(test)]
+mod testing_mod {
 
-            let timestamp = e.0.timestamp();
-            
-            for (user_id, message_count) in &e.1 {
-                let res = sqlx::query("INSERT INTO message_activiy (user_id, timestamp, count) values($1, $2, $3)")
-                    .bind(user_id)
-                    .bind(timestamp)
-                    .bind(*message_count as i32)
-                    .execute(&bot.db).await;
-            }
-        }     
+
+    struct A;
+
+    struct B;
+
+    trait C {
+        fn get() -> Self;
+    }
+
+    impl C for A {
+        fn get() -> Self {
+            A
+        }
+    }
+
+    impl C for B {
+        fn get() -> Self {
+            B
+        }
     }
 
 
+    #[test]
+    fn test_fn() {
+        let v: Vec<Box<dyn Send>> = Vec::new();
+
+
+    }
 }

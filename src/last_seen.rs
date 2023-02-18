@@ -2,6 +2,7 @@ use chrono::{NaiveDateTime, Utc};
 use serenity::model::{channel::Message, event::TypingStartEvent};
 use serenity::prelude::*;
 use sqlx::Row;
+use tracing::{info, error};
 
 use crate::Bot;
 
@@ -15,7 +16,7 @@ pub async fn record_typing_event(bot: &Bot, event: TypingStartEvent) {
         .await
         .unwrap();
 
-    println!("{res:?}");
+    info!("{res:?}");
 }
 
 pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
@@ -34,7 +35,7 @@ pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
             let msg_response = format!("last seen: <t:{}:f>", t.timestamp());
 
             if let Err(why) = msg.channel_id.say(&ctx.http, msg_response).await {
-                println!("Error sending message: {:?}", why);
+                error!("Error sending message: {:?}", why);
             }
         }
     }

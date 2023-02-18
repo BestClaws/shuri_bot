@@ -9,7 +9,7 @@ pub fn setup_loggers() -> Result<(), fern::InitError> {
                 message
             ))
         })
-        .level(log::LevelFilter::Info)
+        .level(log::LevelFilter::Warn)
         .chain(std::io::stdout())
         .chain(fern::log_file("output.log")?)
         .apply()?;
