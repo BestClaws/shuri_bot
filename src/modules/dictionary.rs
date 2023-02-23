@@ -1,7 +1,7 @@
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serenity::{model::prelude::Message, prelude::Context};
-use tracing::{error, info};
+use tracing::{error};
 
 use crate::Bot;
 

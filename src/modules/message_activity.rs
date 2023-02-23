@@ -1,7 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use crate::Bot;
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use tracing::{info, error};
 use serenity::{
     model::prelude::Message,
@@ -92,6 +92,7 @@ pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
             } else {
                 1
             };
+            
 
             hm.insert(user_id, c);
         }
@@ -106,36 +107,3 @@ pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
 
 }
 
-
-#[cfg(test)]
-mod testing_mod {
-
-
-    struct A;
-
-    struct B;
-
-    trait C {
-        fn get() -> Self;
-    }
-
-    impl C for A {
-        fn get() -> Self {
-            A
-        }
-    }
-
-    impl C for B {
-        fn get() -> Self {
-            B
-        }
-    }
-
-
-    #[test]
-    fn test_fn() {
-        let v: Vec<Box<dyn Send>> = Vec::new();
-
-
-    }
-}

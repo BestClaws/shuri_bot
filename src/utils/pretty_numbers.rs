@@ -1,4 +1,3 @@
-
 /// make numbers more readable
 
 const VALID_NUMERALS: [u8; 10] = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9'];
@@ -23,12 +22,10 @@ impl PrettiableNumber for String {
             }
         }
 
-     
-
         let Some(first) = pretty_number.first() else {
             panic!("couldnt fetch first byte to check if comma, number seems to be empty. why?");
         };
-        
+
         if first.eq(&b',') {
             pretty_number.remove(0); // NOTE: bad shifts all elements to left
         }
@@ -43,22 +40,17 @@ impl PrettiableNumber for String {
 
         };
 
-        num.to_owned().clone() // TODO: investiage how any given function(to_owned, clone) convert a type with referenced data to a type 
+        num.to_owned().clone() // TODO: investiage how any given function(to_owned, clone) convert a type with referenced data to a type
     }
 }
-
-
-
 
 #[cfg(test)]
 mod test {
 
-    use crate::pretty_numbers::PrettiableNumber;
+    use super::PrettiableNumber;
 
     #[test]
     fn test_pretty_for_string() {
         assert_eq!("100,000", String::from("100000").pretty());
     }
-
-
 }
