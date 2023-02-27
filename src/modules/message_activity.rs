@@ -2,12 +2,13 @@ use std::collections::{HashMap, VecDeque};
 
 use crate::Bot;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use tracing::{info, error};
 use serenity::{
     model::prelude::Message,
     prelude::{Context, TypeMapKey},
 };
+use tracing::{error, info};
 
+// serenity data model to store message activity.
 pub struct MessageActivityData;
 
 impl TypeMapKey for MessageActivityData {
@@ -15,12 +16,11 @@ impl TypeMapKey for MessageActivityData {
 }
 
 pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
-
-
     if msg.content.starts_with("!msgstats ") {
+        info!("retrieving message stats for {}", msg.author.id);
         for member in &msg.mentions {
             let user_id = member.id.to_string();
-            
+
             let rows = sqlx::query("select * from message_activity where user_id=$1")
                 .bind(user_id)
                 .fetch_all(&bot.db)
@@ -31,8 +31,9 @@ pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
 
             let mut msg_response = String::new();
 
+            info!("found {} message points", rows.len());
+
             for row in rows {
-                info!("row found!");
                 let t: DateTime<Utc> = row.try_get("timestamp").unwrap();
                 let c: i32 = row.try_get("message_count").unwrap();
 
@@ -40,15 +41,18 @@ pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
                 msg_response.push_str(&r);
             }
 
-
             if let Err(why) = msg.channel_id.say(&ctx.http, msg_response).await {
                 error!("error sending message: {:?}", why);
             }
-
         }
     }
 
+    update_activity_queue(ctx, msg).await;
 
+}
+
+
+async fn update_activity_queue(ctx: &Context, msg: &Message) {
 
     // (cache should be a queue)
     // check message timestamp (ignoring second) in cache
@@ -61,13 +65,11 @@ pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
 
     // strip the ms and ns from datetime.
     let msg_timestamp = NaiveDateTime::from_timestamp_opt(msg.timestamp.timestamp(), 0).unwrap();
-
-
-
-
     let user_id = msg.author.id.to_string();
 
-    let queue = match data.get_mut::<MessageActivityData>() {
+ 
+    // TODO: this is a one time thing. shouldnt exist here.
+    let msg_activity_queue = match data.get_mut::<MessageActivityData>() {
         Some(q) => q,
         None => {
             let v: VecDeque<(NaiveDateTime, HashMap<String, u16>)> = VecDeque::new();
@@ -76,34 +78,30 @@ pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
         }
     };
 
-    info!("queue: {:?}", queue);
+
+    info!("queue: {:?}", msg_activity_queue);
 
     // find the timeframe in data and increment/create the user message count
     // else crete the time frame
-    let matched_frame = queue.iter_mut().find(|x| {
+    let time_frame = msg_activity_queue.iter_mut().find(|x| {
         let (timestamp, _) = x;
         timestamp.eq(&msg_timestamp)
     });
 
-    match matched_frame {
-        Some((_, hm)) => {
-            let c = if let Some(c) = hm.get_mut(&user_id) {
-                *c + 1
+    match time_frame {
+        Some((_, user_msg_counts)) => {
+            let count = if let Some(count) = user_msg_counts.get_mut(&user_id) {
+                *count + 1
             } else {
                 1
             };
-            
 
-            hm.insert(user_id, c);
+            user_msg_counts.insert(user_id, count);
         }
         None => {
-            let mut hm = HashMap::new();
-            hm.insert(user_id, 1);
-            queue.push_back((msg_timestamp, hm));
+            let mut user_msg_counts = HashMap::new();
+            user_msg_counts.insert(user_id, 1);
+            msg_activity_queue.push_back((msg_timestamp, user_msg_counts));
         }
     }
-
-
-
 }
-

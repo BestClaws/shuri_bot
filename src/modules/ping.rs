@@ -5,7 +5,7 @@ use serenity::{
 };
 use tracing::error;
 
-pub async fn process_message(bot: &Bot, ctx: &Context, msg: &Message) {
+pub async fn process_message(_bot: &Bot, ctx: &Context, msg: &Message) {
     if msg.content == "!ping" {
         // sending a message can fail, due to a network error, an
         // authentication error, or lack of permissions to post in the

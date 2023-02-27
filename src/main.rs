@@ -17,7 +17,7 @@ use modules::*;
 use message_activity::MessageActivityData;
 
 
-
+#[derive(Debug)]
 pub struct Bot {
     // TODO: add bot config here.
     pub db: Pool<Postgres>,
@@ -71,12 +71,21 @@ async fn main() {
 
     // TODO: do this in another file.
     // setup logging , or rather tracing.
+
+    // a blocking file appender
     let file_appender = tracing_appender::rolling::never("logs", "output.log");
+    
+    // make it non blocking
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    
+    // use the non blocking one to write events.
     tracing_subscriber::fmt()
         .with_writer(non_blocking)
         .with_ansi(false)
         .init();
+
+    // if you intend to use tokio console. use this instead. 
+    // console_subscriber::init();
 
 
     //  Initialize DB
@@ -96,7 +105,7 @@ async fn main() {
                 "critical error, failed to establish connection to database: {}",
                 err
             );
-            panic!();
+            panic!("{}", err);
         }
     };
 
@@ -122,42 +131,44 @@ async fn main() {
         .await
         .expect("Err creating client");
 
-    {
-        let data = client.data.clone();
+    // do module wise setup
+    
 
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
-        tokio::spawn(async move {
-            loop {
-                interval.tick().await;
-                let mut data = data.write().await;
-                let data = data.get_mut::<MessageActivityData>();
-                if let Some(queue) = data {
-                    debug!("persisting to message_activity");
-                    while queue.len() > 1 {
-                        // leave atleast one latest timestap alone incase
-                        // its still being populated.
+    // persist message activity to db every n seconds.
+    let data = client.data.clone();
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
+    tokio::spawn(async move {
+        loop {
+            interval.tick().await;
+            let mut data = data.write().await;
+            let data = data.get_mut::<MessageActivityData>();
+            if let Some(msg_activity_queue) = data {
+                debug!("persisting to message_activity");
+                while msg_activity_queue.len() > 1 {
+                    // leave atleast one latest timestap alone incase
+                    // its still being populated.
 
-                        info!("more than one entry found in message_activity queue");
-                        let Some(e) = queue.pop_front() else {
-                            panic!("error occured getting the next element.");
-                        };
+                    info!("more than one entry found in message_activity queue");
+                    let Some(e) = msg_activity_queue.pop_front() else {
+                        panic!("error occured getting the next element.");
+                    };
 
-                        let timestamp = e.0;
+                    let timestamp = e.0;
 
-                        for (user_id, message_count) in &e.1 {
-                            let res = sqlx::query("INSERT INTO message_activity (user_id, timestamp, message_count) values($1, $2, $3)")
-                                .bind(user_id)
-                                .bind(timestamp)
-                                .bind(*message_count as i32)
-                                .execute(&pool).await;
+                    for (user_id, message_count) in &e.1 {
+                        let res = sqlx::query("INSERT INTO message_activity (user_id, timestamp, message_count) values($1, $2, $3)")
+                            .bind(user_id)
+                            .bind(timestamp)
+                            .bind(*message_count as i32)
+                            .execute(&pool).await;
 
-                            info!("insert results: {:?}", res)
-                        }
+                        info!("insert results: {:?}", res)
                     }
                 }
             }
-        });
-    }
+        }
+    });
+
 
     // start a single shard and start listening to events.
     // shards will automatically attempt to reconnect and will perform
